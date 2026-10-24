@@ -71,6 +71,26 @@ app.post('/api/exercises', async (req, res) => {
   }
 });
 
+
+app.post('/api/mindmap', async (req, res) => {
+  try {
+    const topic = String(req.body?.topic || '').trim().slice(0, 300);
+    const level = String(req.body?.level || 'Cơ bản, dễ hiểu cho người mới').slice(0, 160);
+    const extra = String(req.body?.extra || '').trim().slice(0, 1200);
+    if (!topic) return res.status(400).json({ error: 'Vui lòng chọn chủ đề XSTK.' });
+    const prompt = `Tạo bản đồ tư duy học tập bằng tiếng Việt cho môn Xác suất thống kê (XSTK). Chủ đề: ${topic}. Mức độ: ${level}. Yêu cầu thêm: ${extra || 'Không có'}.\n\nChỉ trả về JSON hợp lệ, không markdown fence, theo schema: {"title":"Tên sơ đồ","detail":"Tóm tắt mục tiêu học","children":[{"title":"Nhánh chính","detail":"Mô tả ngắn; công thức nếu phù hợp","children":[{"title":"Ý nhỏ","detail":"Định nghĩa/công thức/điều kiện/ví dụ ngắn","children":[]}]}]}. Tạo 4-7 nhánh chính, mỗi nhánh 2-5 ý nhỏ, tối đa 3 cấp tính từ gốc. Bao gồm khi phù hợp: khái niệm, công thức chuẩn xác, điều kiện áp dụng, cách nhận biết dạng bài, ví dụ ngắn và lỗi thường gặp. Dùng ký hiệu toán học dễ đọc bằng Unicode; không bịa công thức. Nếu công thức phụ thuộc quy ước giáo trình, ghi chú rõ.`;
+    const raw = await generate(prompt, 'Bạn là giảng viên đại học dạy Xác suất thống kê. Tổ chức kiến thức chính xác, có cấu trúc, ngắn gọn và phù hợp để ôn tập. Chỉ trả JSON hợp lệ.');
+    let mindmap;
+    try { mindmap = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()); }
+    catch { throw new Error('AI trả về sơ đồ không đúng định dạng. Hãy bấm tạo lại.'); }
+    if (!mindmap || typeof mindmap !== 'object' || !Array.isArray(mindmap.children)) throw new Error('Cấu trúc bản đồ tư duy không hợp lệ. Hãy thử lại.');
+    res.json({ mindmap, model: MODEL });
+  } catch (error) {
+    console.error('Mindmap API error:', error.message);
+    res.status(error.status || 502).json({ error: error.message || 'Không tạo được bản đồ tư duy.' });
+  }
+});
+
 app.post('/api/grade', async (req, res) => {
   try {
     const { fileName, mimeType, base64, rubric } = req.body || {};

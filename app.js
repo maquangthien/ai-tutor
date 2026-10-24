@@ -61,13 +61,14 @@ const pages = {
   tutor: ['Giải toán theo 4 bước','Học cách tư duy, không chỉ tìm đáp án.'],
   grading: ['Chấm bài','Xem trước bài làm và nhập điểm theo barem mẫu.'],
   practice: ['Tạo bài tập tương tự','Luyện tập thêm với bộ câu hỏi mẫu có sẵn.'],
+  mindmap: ['Bản đồ tư duy XSTK','Tóm tắt kiến thức bằng sơ đồ do Gemini tạo.'],
   voice: ['Trò chuyện bằng giọng nói','Thử nhận dạng và đọc văn bản bằng trình duyệt.'],
   status: ['Trạng thái tính năng','Theo dõi rõ những phần đã hoạt động và chưa kết nối.'],
   home: ['Giải toán theo 4 bước','Học cách tư duy, không chỉ tìm đáp án.']
 };
 function showPage(name){ if(name==='home') name='tutor'; $$('.page').forEach(p=>p.classList.remove('active')); const page=$('#page-'+name); if(page)page.classList.add('active'); $$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===name)); $('#pageTitle').textContent=pages[name][0];$('#pageSubtitle').textContent=pages[name][1];window.scrollTo({top:0,behavior:'smooth'}); }
 $$('[data-page]').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
-$('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();if(q.includes('chấm')||q.includes('pdf')||q.includes('ảnh'))showPage('grading');else if(q.includes('giọng')||q.includes('nói'))showPage('voice');else if(q.includes('bài tập'))showPage('practice');else showPage('tutor');}});
+$('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();if(q.includes('chấm')||q.includes('pdf')||q.includes('ảnh'))showPage('grading');else if(q.includes('giọng')||q.includes('nói'))showPage('voice');else if(q.includes('bài tập'))showPage('practice');else if(q.includes('bản đồ')||q.includes('mindmap')||q.includes('tư duy'))showPage('mindmap');else showPage('tutor');}});
 const stepData=[
  {title:'Phân tích đề bài',intro:'Xác định dữ kiện đã cho và điều đề bài yêu cầu.',given:'E(X) = 3 và E(X²) = 13.',find:'Tính phương sai Var(X).',hints:['Đề bài đã cho những đại lượng nào?','Phương sai mô tả đặc điểm gì của biến ngẫu nhiên?','Bạn nhớ công thức liên hệ giữa E(X²), E(X) và Var(X) không?']},
  {title:'Kiến thức cần dùng',intro:'Nhớ lại công thức hoặc định lý phù hợp trước khi tính.',given:'Kỳ vọng E(X) = 3; kỳ vọng bình phương E(X²) = 13.',find:'Chọn công thức tính phương sai.',hints:['Công thức Var(X) = E(X²) − [E(X)]² có phù hợp không?','Bạn đã phân biệt E(X²) với [E(X)]² chưa?','Hãy nêu công thức bằng lời hoặc viết lại bằng ký hiệu.']},
@@ -109,3 +110,57 @@ $('#askVoiceAI').addEventListener('click',async()=>{const question=$('#transcrip
 // Check whether the local backend is running; never imply AI is connected when it is not.
 fetch('/api/health').then(r=>r.json()).then(d=>{if(!d.configured){$('.mvp-tag').innerHTML='<i></i> Máy chủ chạy · Chưa có API key';}}).catch(()=>{$('.mvp-tag').innerHTML='<i></i> Chưa kết nối máy chủ Gemini';});
 renderStep();sumScores();
+
+
+// AI-generated XSTK mind maps. Render with DOM nodes/textContent to avoid injecting model HTML.
+let currentMindmap = null;
+const mindmapTopic = $('#mindmapTopic');
+mindmapTopic.addEventListener('change', () => {
+  const custom = mindmapTopic.value === 'Tự nhập chủ đề';
+  if (custom) {
+    const topic = prompt('Nhập chủ đề Xác suất thống kê bạn muốn lập bản đồ tư duy:');
+    if (topic && topic.trim()) { const option = document.createElement('option'); option.value = topic.trim(); option.textContent = topic.trim(); option.selected = true; mindmapTopic.insertBefore(option, mindmapTopic.lastElementChild); }
+    else mindmapTopic.selectedIndex = 0;
+  }
+});
+function buildMindmapNode(node, depth=0) {
+  const item = document.createElement('li'); item.className = `mindmap-node depth-${Math.min(depth, 4)}`;
+  const card = document.createElement('div'); card.className = 'mindmap-node-card';
+  const title = document.createElement('strong'); title.textContent = String(node?.title || 'Ý chính'); card.append(title);
+  if (node?.detail) { const detail = document.createElement('p'); detail.textContent = String(node.detail); card.append(detail); }
+  item.append(card);
+  if (Array.isArray(node?.children) && node.children.length) {
+    const list = document.createElement('ul'); list.className = 'mindmap-children';
+    node.children.slice(0, 8).forEach(child => list.append(buildMindmapNode(child, depth+1)));
+    item.append(list);
+  }
+  return item;
+}
+function mindmapToMarkdown(node, depth=0) {
+  let out = `${'  '.repeat(depth)}- **${String(node.title || 'Ý chính')}**${node.detail ? ': ' + String(node.detail) : ''}\n`;
+  if (Array.isArray(node.children)) for (const child of node.children) out += mindmapToMarkdown(child, depth+1);
+  return out;
+}
+$('#generateMindmap').addEventListener('click', async () => {
+  const topic = mindmapTopic.value.trim();
+  if (!topic || topic === 'Tự nhập chủ đề') { alert('Hãy chọn hoặc nhập một chủ đề cụ thể.'); return; }
+  const btn = $('#generateMindmap'); btn.disabled = true; $('#downloadMindmap').disabled = true;
+  $('#mindmapStatus').textContent = 'Đang tạo…'; $('#mindmapTitle').textContent = 'Gemini đang hệ thống hóa kiến thức';
+  $('#mindmapCanvas').innerHTML = '<div class="empty-state"><b>Đang tạo sơ đồ kiến thức…</b><p>Quá trình này có thể mất vài giây.</p></div>';
+  try {
+    const result = await askServer('/api/mindmap', {topic, level: $('#mindmapLevel').value, extra: $('#mindmapExtra').value.trim()});
+    currentMindmap = result.mindmap;
+    $('#mindmapTitle').textContent = currentMindmap.title || topic;
+    $('#mindmapCanvas').replaceChildren(buildMindmapNode(currentMindmap));
+    $('#mindmapStatus').textContent = 'Đã tạo sơ đồ'; $('#downloadMindmap').disabled = false;
+  } catch (error) {
+    currentMindmap = null; $('#mindmapTitle').textContent = 'Chưa tạo được bản đồ'; $('#mindmapStatus').textContent = 'Có lỗi';
+    const message = document.createElement('p'); message.className = 'mindmap-error'; message.textContent = error.message + ' — Hãy kiểm tra API key hoặc thử lại sau.'; $('#mindmapCanvas').replaceChildren(message);
+  } finally { btn.disabled = false; }
+});
+$('#downloadMindmap').addEventListener('click', () => {
+  if (!currentMindmap) return;
+  const content = `# ${currentMindmap.title || 'Bản đồ tư duy XSTK'}\n\n${mindmapToMarkdown(currentMindmap)}\n\n> Nội dung do AI tạo để hỗ trợ học tập; hãy đối chiếu giáo trình.`;
+  const url = URL.createObjectURL(new Blob([content], {type:'text/markdown;charset=utf-8'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'ban-do-tu-duy-xstk.md'; a.click(); URL.revokeObjectURL(url);
+});
