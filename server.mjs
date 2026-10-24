@@ -89,7 +89,7 @@ app.post('/api/grade', async (req, res) => {
 });
 
 app.use(express.static(__dirname));
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`AI Tutor đang chạy tại http://localhost:${PORT}`);
   console.log(`Mô hình: ${MODEL}`);
   console.log('Giữ cửa sổ này mở khi dùng website. Nhấn Ctrl+C để dừng.');
