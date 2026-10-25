@@ -12,7 +12,7 @@ BẢN NÀY CÓ GÌ?
 CÁCH CÀI ĐẶT LẦN ĐẦU
 1. Cài Node.js bản LTS từ https://nodejs.org/ (nếu máy chưa có).
 2. Tạo Gemini API key tại https://aistudio.google.com/apikey . Đăng nhập tài khoản Google.
-3. Giải nén toàn bộ thư mục ai-tutor-mvp.
+3. Giải nén toàn bộ thư mục ai-classroom-mvp.
 4. Nhấp đúp start.bat. Lần đầu, chương trình tạo tệp .env và mở Notepad.
 5. Trong .env, thay PASTE_YOUR_GEMINI_API_KEY_HERE bằng API key của bạn, giữ nguyên phần GEMINI_API_KEY= ở đầu dòng. Lưu tệp và đóng Notepad.
 6. Nhấp đúp start.bat lần nữa. Chương trình sẽ cài thư viện cần thiết qua Internet lần đầu và khởi động máy chủ.

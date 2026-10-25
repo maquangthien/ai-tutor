@@ -62,13 +62,14 @@ const pages = {
   grading: ['Chấm bài','Xem trước bài làm và nhập điểm theo barem mẫu.'],
   practice: ['Tạo bài tập tương tự','Luyện tập thêm với bộ câu hỏi mẫu có sẵn.'],
   mindmap: ['Bản đồ tư duy XSTK','Tóm tắt kiến thức bằng sơ đồ do Gemini tạo.'],
+  game: ['Mèo vờn chuột XSTK','Ôn tập Xác suất thống kê qua trò chơi tương tác.'],
   voice: ['Trò chuyện bằng giọng nói','Thử nhận dạng và đọc văn bản bằng trình duyệt.'],
   status: ['Trạng thái tính năng','Theo dõi rõ những phần đã hoạt động và chưa kết nối.'],
   home: ['Giải toán theo 4 bước','Học cách tư duy, không chỉ tìm đáp án.']
 };
 function showPage(name){ if(name==='home') name='tutor'; $$('.page').forEach(p=>p.classList.remove('active')); const page=$('#page-'+name); if(page)page.classList.add('active'); $$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===name)); $('#pageTitle').textContent=pages[name][0];$('#pageSubtitle').textContent=pages[name][1];window.scrollTo({top:0,behavior:'smooth'}); }
 $$('[data-page]').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
-$('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();if(q.includes('chấm')||q.includes('pdf')||q.includes('ảnh'))showPage('grading');else if(q.includes('giọng')||q.includes('nói'))showPage('voice');else if(q.includes('bài tập'))showPage('practice');else if(q.includes('bản đồ')||q.includes('mindmap')||q.includes('tư duy'))showPage('mindmap');else showPage('tutor');}});
+$('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();if(q.includes('chấm')||q.includes('pdf')||q.includes('ảnh'))showPage('grading');else if(q.includes('giọng')||q.includes('nói'))showPage('voice');else if(q.includes('bài tập'))showPage('practice');else if(q.includes('mèo')||q.includes('trò chơi')||q.includes('game'))showPage('game');else if(q.includes('bản đồ')||q.includes('mindmap')||q.includes('tư duy'))showPage('mindmap');else showPage('tutor');}});
 const stepData=[
  {title:'Phân tích đề bài',intro:'Xác định dữ kiện đã cho và điều đề bài yêu cầu.',given:'E(X) = 3 và E(X²) = 13.',find:'Tính phương sai Var(X).',hints:['Đề bài đã cho những đại lượng nào?','Phương sai mô tả đặc điểm gì của biến ngẫu nhiên?','Bạn nhớ công thức liên hệ giữa E(X²), E(X) và Var(X) không?']},
  {title:'Kiến thức cần dùng',intro:'Nhớ lại công thức hoặc định lý phù hợp trước khi tính.',given:'Kỳ vọng E(X) = 3; kỳ vọng bình phương E(X²) = 13.',find:'Chọn công thức tính phương sai.',hints:['Công thức Var(X) = E(X²) − [E(X)]² có phù hợp không?','Bạn đã phân biệt E(X²) với [E(X)]² chưa?','Hãy nêu công thức bằng lời hoặc viết lại bằng ký hiệu.']},
