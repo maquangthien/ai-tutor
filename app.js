@@ -62,14 +62,14 @@ const pages = {
   grading: ['Chấm bài','Xem trước bài làm và nhập điểm theo barem mẫu.'],
   practice: ['Tạo bài tập tương tự','Luyện tập thêm với bộ câu hỏi mẫu có sẵn.'],
   mindmap: ['Bản đồ tư duy XSTK','Tóm tắt kiến thức bằng sơ đồ do Gemini tạo.'],
-  game: ['Mèo vờn chuột XSTK','Ôn tập Xác suất thống kê qua trò chơi tương tác.'],
+  game: ['Game trắc nghiệm AI','Luyện tập với 10 câu hỏi do AI tạo, mỗi câu 20 giây.'],
   voice: ['Trò chuyện bằng giọng nói','Thử nhận dạng và đọc văn bản bằng trình duyệt.'],
   status: ['Trạng thái tính năng','Theo dõi rõ những phần đã hoạt động và chưa kết nối.'],
   home: ['Giải toán theo 4 bước','Học cách tư duy, không chỉ tìm đáp án.']
 };
 function showPage(name){ if(name==='home') name='tutor'; $$('.page').forEach(p=>p.classList.remove('active')); const page=$('#page-'+name); if(page)page.classList.add('active'); $$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===name)); $('#pageTitle').textContent=pages[name][0];$('#pageSubtitle').textContent=pages[name][1];window.scrollTo({top:0,behavior:'smooth'}); }
 $$('[data-page]').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
-$('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();if(q.includes('chấm')||q.includes('pdf')||q.includes('ảnh'))showPage('grading');else if(q.includes('giọng')||q.includes('nói'))showPage('voice');else if(q.includes('bài tập'))showPage('practice');else if(q.includes('mèo')||q.includes('trò chơi')||q.includes('game'))showPage('game');else if(q.includes('bản đồ')||q.includes('mindmap')||q.includes('tư duy'))showPage('mindmap');else showPage('tutor');}});
+$('#globalSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const q=e.target.value.toLowerCase();if(q.includes('chấm')||q.includes('pdf')||q.includes('ảnh'))showPage('grading');else if(q.includes('giọng')||q.includes('nói'))showPage('voice');else if(q.includes('bài tập'))showPage('practice');else if(q.includes('trắc nghiệm')||q.includes('trò chơi')||q.includes('game'))showPage('game');else if(q.includes('bản đồ')||q.includes('mindmap')||q.includes('tư duy'))showPage('mindmap');else showPage('tutor');}});
 const stepData=[
  {title:'Phân tích đề bài',intro:'Xác định dữ kiện đã cho và điều đề bài yêu cầu.',given:'E(X) = 3 và E(X²) = 13.',find:'Tính phương sai Var(X).',hints:['Đề bài đã cho những đại lượng nào?','Phương sai mô tả đặc điểm gì của biến ngẫu nhiên?','Bạn nhớ công thức liên hệ giữa E(X²), E(X) và Var(X) không?']},
  {title:'Kiến thức cần dùng',intro:'Nhớ lại công thức hoặc định lý phù hợp trước khi tính.',given:'Kỳ vọng E(X) = 3; kỳ vọng bình phương E(X²) = 13.',find:'Chọn công thức tính phương sai.',hints:['Công thức Var(X) = E(X²) − [E(X)]² có phù hợp không?','Bạn đã phân biệt E(X²) với [E(X)]² chưa?','Hãy nêu công thức bằng lời hoặc viết lại bằng ký hiệu.']},
@@ -165,3 +165,53 @@ $('#downloadMindmap').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([content], {type:'text/markdown;charset=utf-8'}));
   const a = document.createElement('a'); a.href = url; a.download = 'ban-do-tu-duy-xstk.md'; a.click(); URL.revokeObjectURL(url);
 });
+
+
+// Game trắc nghiệm AI: tạo 10 câu một lần, mỗi câu 20 giây; không gọi AI từng câu.
+let quizQuestions = [], quizIndex = 0, quizScore = 0, quizTimerId = null, quizSeconds = 20, quizLocked = false, quizAnswers = [];
+const quizEsc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function stopQuizTimer(){ if(quizTimerId){clearInterval(quizTimerId);quizTimerId=null;} }
+function showQuizError(message){
+  const card=$('#quizPlayCard'); card.classList.remove('hidden'); $('#quizResultCard').classList.add('hidden');
+  $('#quizProgress').textContent='Chưa bắt đầu'; $('#quizTimer').textContent='—'; $('#quizProgressBar').style.width='0%';
+  $('#quizQuestion').textContent='Chưa tạo được bộ câu hỏi'; $('#quizOptions').replaceChildren();
+  const box=$('#quizFeedback'); box.classList.remove('hidden'); box.textContent=message;
+  $('#quizNext').classList.add('hidden');
+}
+$('#startQuiz').addEventListener('click', async()=>{
+  const btn=$('#startQuiz'); btn.disabled=true; btn.textContent='Đang soạn 10 câu hỏi…';
+  $('#quizResultCard').classList.add('hidden'); $('#quizPlayCard').classList.remove('hidden');
+  $('#quizQuestion').textContent='AI đang chuẩn bị bộ câu hỏi cho bạn…'; $('#quizOptions').replaceChildren(); $('#quizFeedback').classList.add('hidden'); $('#quizNext').classList.add('hidden');
+  try{
+    const result=await askServer('/api/quiz',{topic:$('#quizTopic').value,difficulty:$('#quizDifficulty').value,count:10});
+    if(!Array.isArray(result.questions)||result.questions.length!==10) throw new Error('AI chưa tạo đủ 10 câu hỏi. Hãy thử lại.');
+    quizQuestions=result.questions; quizIndex=0; quizScore=0; quizAnswers=[]; renderQuizQuestion();
+  }catch(error){showQuizError('Không tạo được câu hỏi: '+error.message+' Nếu Gemini hết quota miễn phí, hãy chờ hạn mức được cấp lại rồi thử lại.');}
+  finally{btn.disabled=false;btn.textContent='▶ Bắt đầu';}
+});
+function renderQuizQuestion(){
+  stopQuizTimer(); quizLocked=false; quizSeconds=20;
+  const q=quizQuestions[quizIndex]; $('#quizProgress').textContent=`Câu ${quizIndex+1}/10`;
+  $('#quizTopicLabel').textContent=`${$('#quizTopic').value.toLocaleUpperCase('vi-VN')} · MỨC ${$('#quizDifficulty').value.toLocaleUpperCase('vi-VN')}`;
+  $('#quizQuestion').textContent=q.question; $('#quizTimer').textContent='20 giây'; $('#quizTimer').classList.remove('urgent');
+  $('#quizProgressBar').style.width=`${quizIndex/10*100}%`; $('#quizFeedback').classList.add('hidden'); $('#quizNext').classList.add('hidden');
+  const options=$('#quizOptions'); options.replaceChildren();
+  q.options.forEach((option,index)=>{const button=document.createElement('button');button.type='button';button.className='quiz-option';button.innerHTML=`<span class="quiz-option-letter">${String.fromCharCode(65+index)}</span><span>${quizEsc(option)}</span>`;button.addEventListener('click',()=>answerQuiz(index,false));options.append(button);});
+  quizTimerId=setInterval(()=>{quizSeconds--;$('#quizTimer').textContent=`${quizSeconds} giây`;$('#quizTimer').classList.toggle('urgent',quizSeconds<=5);if(quizSeconds<=0)answerQuiz(-1,true);},1000);
+}
+function answerQuiz(choice,timedOut){
+  if(quizLocked)return;quizLocked=true;stopQuizTimer();const q=quizQuestions[quizIndex];const correct=choice===q.answerIndex;if(correct)quizScore++;
+  quizAnswers.push({choice,correct,timedOut});
+  const buttons=[...$('#quizOptions').querySelectorAll('button')];buttons.forEach((button,i)=>{button.disabled=true;if(i===q.answerIndex)button.classList.add('correct');else if(i===choice)button.classList.add('wrong');});
+  const feedback=$('#quizFeedback');feedback.classList.remove('hidden');feedback.classList.toggle('is-correct',correct);feedback.classList.toggle('is-wrong',!correct);
+  const prefix=timedOut?'Hết giờ! ':correct?'Chính xác! ':'Chưa đúng. ';
+  feedback.textContent=prefix+`Đáp án: ${q.options[q.answerIndex]}. ${q.explanation||''}`;
+  $('#quizProgressBar').style.width=`${(quizIndex+1)/10*100}%`;
+  $('#quizNext').textContent=quizIndex===9?'Xem kết quả →':'Câu tiếp theo →';$('#quizNext').classList.remove('hidden');
+}
+$('#quizNext').addEventListener('click',()=>{if(!quizLocked)return;if(quizIndex<9){quizIndex++;renderQuizQuestion();}else finishQuiz();});
+function finishQuiz(){stopQuizTimer();$('#quizPlayCard').classList.add('hidden');$('#quizResultCard').classList.remove('hidden');const pct=Math.round(quizScore/10*100);$('#quizResultTitle').textContent=pct>=80?'Xuất sắc!':pct>=50?'Làm tốt lắm!':'Đừng nản chí, hãy ôn lại nhé!';$('#quizResultSummary').textContent=`Bạn đã hoàn thành 10 câu ở mức ${$('#quizDifficulty').value.toLowerCase()}. Hãy xem lại phần giải thích để củng cố kiến thức.`;$('#quizFinalScore').textContent=`${quizScore}/10`;$('#quizFinalPercent').textContent=`${pct}%`;$('#quizCorrectCount').textContent=String(quizScore);
+ const review=$('#quizReview');review.replaceChildren();quizQuestions.forEach((q,i)=>{const row=document.createElement('details');row.className='quiz-review-item';const summary=document.createElement('summary');summary.textContent=`${i+1}. ${q.question} — ${quizAnswers[i]?.correct?'Đúng':'Chưa đúng'}`;const body=document.createElement('p');body.textContent=`Đáp án: ${q.options[q.answerIndex]}. ${q.explanation||''}`;row.append(summary,body);review.append(row);});
+ try{const stats=JSON.parse(localStorage.getItem('aiClassroomQuizStats')||'{"games":0,"best":0}');stats.games++;stats.best=Math.max(stats.best,quizScore);localStorage.setItem('aiClassroomQuizStats',JSON.stringify(stats));}catch{}
+}
+$('#quizRestart').addEventListener('click',()=>{$('#quizResultCard').classList.add('hidden');$('#quizPlayCard').classList.add('hidden');$('#startQuiz').click();});

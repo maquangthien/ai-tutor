@@ -91,6 +91,33 @@ app.post('/api/mindmap', async (req, res) => {
   }
 });
 
+
+app.post('/api/quiz', async (req, res) => {
+  try {
+    const topic = String(req.body?.topic || 'Xác suất thống kê tổng hợp').trim().slice(0, 240);
+    const difficulty = String(req.body?.difficulty || 'Trung bình').trim();
+    const allowedDifficulty = ['Dễ', 'Trung bình', 'Khó'];
+    if (!allowedDifficulty.includes(difficulty)) return res.status(400).json({ error: 'Mức độ không hợp lệ.' });
+    const prompt = `Tạo đúng 10 câu hỏi trắc nghiệm bằng tiếng Việt cho chủ đề "${topic}" ở mức độ "${difficulty}". Mỗi câu phải ngắn gọn, tự chứa đủ dữ kiện, có đúng 4 phương án khác nhau và chỉ một đáp án đúng. Mức Dễ kiểm tra kiến thức nền; Trung bình cần áp dụng công thức hoặc suy luận ngắn; Khó cần nhiều bước suy luận nhưng vẫn giải được trong khoảng 20 giây. Tránh câu mơ hồ, không dùng “tất cả đáp án trên”. Tự kiểm tra đáp án và phép tính.
+Chỉ trả về JSON hợp lệ, không markdown, đúng dạng: {"questions":[{"question":"Nội dung câu hỏi","options":["A","B","C","D"],"answerIndex":0,"explanation":"Giải thích ngắn vì sao đáp án đúng"}]}. answerIndex là số nguyên 0-3. Đúng 10 phần tử. Giải thích tối đa 2 câu.`;
+    const raw = await generate(prompt, 'Bạn là giảng viên cẩn thận, tạo câu hỏi trắc nghiệm học tập chính xác. Chỉ xuất JSON hợp lệ.');
+    let parsed;
+    try { parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()); }
+    catch { throw new Error('AI trả về bộ câu hỏi không đúng định dạng. Hãy thử tạo lại.'); }
+    if (!parsed || !Array.isArray(parsed.questions) || parsed.questions.length !== 10) throw new Error('Bộ câu hỏi chưa đủ 10 câu. Hãy thử lại.');
+    const questions = parsed.questions.map((q, i) => {
+      if (!q || typeof q.question !== 'string' || !q.question.trim() || !Array.isArray(q.options) || q.options.length !== 4 || q.options.some(x => typeof x !== 'string' || !x.trim()) || !Number.isInteger(q.answerIndex) || q.answerIndex < 0 || q.answerIndex > 3) throw new Error(`Câu ${i+1} không đúng định dạng.`);
+      return { question: q.question.slice(0, 1200), options: q.options.map(x => x.slice(0, 500)), answerIndex: q.answerIndex, explanation: String(q.explanation || '').slice(0, 1000) };
+    });
+    res.json({ questions, model: MODEL });
+  } catch (error) {
+    console.error('Quiz API error:', error.message);
+    const message = String(error.message || 'Không tạo được bộ câu hỏi.');
+    const status = error.status || (message.includes('quota') || message.includes('RESOURCE_EXHAUSTED') ? 429 : 502);
+    res.status(status).json({ error: message });
+  }
+});
+
 app.post('/api/grade', async (req, res) => {
   try {
     const { fileName, mimeType, base64, rubric } = req.body || {};
